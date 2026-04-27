@@ -1,9 +1,9 @@
 import skype_crypto from '../crypto/skype_crypto.js';
 import logger from '../logger/logger.js';
 import common from '../crypto/common.js';
-import sender from './UDPsender.js';
+import UDPsender from './UDPsender.js';
 
-async function send_probe_ok(Skype_SuperNode_Config, supernode, remote, data, requestID, time) {
+async function send_probe_ok(Skype_SuperNode_Config, supernode, remote, data, Client, requestID, time) {
     try {
         const probe_ok = Buffer.alloc(18);
 
@@ -74,16 +74,15 @@ async function send_probe_ok(Skype_SuperNode_Config, supernode, remote, data, re
             skype_crypto.RC4(RC4_KEY, body_to_encrypt);
             body_to_encrypt.copy(probe_ok, 11);
         };
-        
-        logger.print(`[DEBUG] ${time} Sent CMD_PROBE_OK to ${remote.address}:${remote.port}`);
-        await sender.send(probe_ok, supernode, remote, time);
+
+        await UDPsender.send(probe_ok, supernode, remote, Client, time);
     } catch (error) {
         logger.print(`[ERROR] ${time} Failed to send CMD_PROBE_OK: ${error.message}`);
         throw error;
     };
 };
 
-async function send_nack_packet(server, remote, data, time) {
+async function send_nack_packet(server, remote, data, Client, time) {
     try {
         const nack = Buffer.alloc(11);
 
@@ -102,9 +101,8 @@ async function send_nack_packet(server, remote, data, time) {
         challenge_bytes.writeUInt32BE(challenge, 0);
 
         challenge_bytes.copy(nack, 7, 0, 4);
-
-        logger.print(`[DEBUG] ${time} Sent NACK to ${remote.address}:${remote.port}`);
-        await sender.send(nack, server, remote, time);
+        
+        await UDPsender.send(nack, server, remote, Client, time);
     } catch (error) {
         logger.print(`[ERROR] ${time} Failed to send NACK: ${error.message}`);
         throw error;

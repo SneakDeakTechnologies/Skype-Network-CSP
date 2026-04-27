@@ -1,8 +1,9 @@
 import skype_crypto from '../crypto/skype_crypto.js';
 import common from '../crypto/common.js';
 import TCPsender from './TCPsender.js';
+import crypto from 'crypto';
 
-function build_https_handshake() {
+function build_https_handshake(socket, time, Client) {
     const https_HandShake = Buffer.from([
         ...common.HTTPS_HSR_MAGIC,
         0x00, 0x2D, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x05, 0x00, 0x00,
@@ -15,11 +16,11 @@ function build_https_handshake() {
     for (let i = https_HandShake.length - 16; i < https_HandShake.length; i++) {
         https_HandShake[i] = Math.floor(Math.random() * 256);
     };
-    
-    return https_HandShake;
+
+    TCPsender.send(socket, https_HandShake, time, Client);
 };
 
-async function build_keyexchange(Skype_SuperNode_Config, time) {
+async function build_keyexchange(Skype_SuperNode_Config, socket, time, Client) {
     const server_seed = Math.floor(Math.random() * 0xFFFFFFFF) >>> 0;
     const keyexchange = Buffer.alloc(51);
 
@@ -59,7 +60,8 @@ async function build_keyexchange(Skype_SuperNode_Config, time) {
     const encrypted_tail = stream.update(tail);
     encrypted_tail.copy(keyexchange, 14);
 
-    return { keyexchange: keyexchange, server_seed: server_seed, send_stream_key: send_stream_key, stream: stream };
+    TCPsender.send(socket, keyexchange, time, Client);
+    return { server_seed: server_seed, send_stream_key: send_stream_key, stream: stream };
 };
 
 function build_client_accept(socket, stream, time, Client) {
@@ -77,8 +79,67 @@ function build_client_accept(socket, stream, time, Client) {
     TCPsender.send(socket, encrypted, time, Client);
 };
 
+function build_login_handshake(socket, time, Client) {
+    const login_HandShake = Buffer.from([...common.HTTPS_HSR_MAGIC, 0x00, 0x00]);
+    TCPsender.send(socket, login_HandShake, time, Client);
+};
+
+function build_cipherd_blob(username, public_key) {
+    const key_idx = Buffer.alloc(4);
+    key_idx.writeUInt32BE(0, 0);
+
+    let user_data = Buffer.alloc(0);
+
+    user_data = Buffer.concat([user_data, Buffer.from([0x03, 0x00])]);
+    user_data = Buffer.concat([user_data, Buffer.from([username.length])]);
+    user_data = Buffer.concat([user_data, Buffer.from(username, 'utf8')]);
+    user_data = Buffer.concat([user_data, Buffer.from([0x00])]);
+
+    user_data = Buffer.concat([user_data, Buffer.from([0x00, 0x04])]);
+    const expiry = Buffer.alloc(4);
+    expiry.writeUInt32LE(0xFFFFFFFF, 0);
+    user_data = Buffer.concat([user_data, expiry]);
+
+    const key_size = 192;
+    const data = Buffer.alloc(key_size, 0x00);
+    user_data.copy(data, 0, 0, Math.min(user_data.length, key_size));
+
+    const encrypted = crypto.publicEncrypt(
+        {
+            key: public_key,
+            padding: crypto.constants.RSA_NO_PADDING
+        },
+        data
+    );
+
+    return Buffer.concat([key_idx, encrypted]);
+};
+
+function build_login_ok(username, aes_key, public_key, time, socket, Client) {
+    const LOGIN_OK_VAR = skype_crypto.write_int(common.LOGIN_OK);
+    
+    let login_ok_header = Buffer.alloc(0);
+    login_ok_header = Buffer.concat([login_ok_header, Buffer.from([0x41, 0x02])]);
+    login_ok_header = Buffer.concat([login_ok_header, Buffer.from([0x00, 0x01])]);
+    login_ok_header = Buffer.concat([login_ok_header, LOGIN_OK_VAR]);
+    login_ok_header = Buffer.concat([login_ok_header, Buffer.from([0x04, 0x24])]);
+
+    const encrypted = skype_crypto.aes_ctr_encrypt(login_ok_header, aes_key);
+    
+    const login_ok_packet = Buffer.alloc(5 + encrypted.length);
+    login_ok_packet[0] = 0x17;
+    login_ok_packet[1] = 0x03;
+    login_ok_packet[2] = 0x01;
+    login_ok_packet.writeUInt16BE(encrypted.length, 3);
+    encrypted.copy(login_ok_packet, 5);
+
+    TCPsender.send(socket, login_ok_packet, time, Client);
+};
+
 export default {
     build_https_handshake,
     build_keyexchange,
-    build_client_accept
+    build_client_accept,
+    build_login_handshake,
+    build_login_ok
 };
