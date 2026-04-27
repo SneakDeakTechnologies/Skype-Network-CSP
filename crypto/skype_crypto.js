@@ -1,4 +1,5 @@
 import logger from '../logger/logger.js';
+import crypto from 'crypto';
 import dgram from 'dgram';
 
 const crc32_table = create_crc32_table();
@@ -195,9 +196,88 @@ function read_int(buf, offset) {
         pos++;
         if ((byte & 0x80) === 0) break;
         shift += 7;
-    }
+    };
 
     return { value: result, size: pos - offset };
+};
+
+function write_int(value) {
+    const out = [];
+
+    let v = value >>> 0;
+
+    while (v >= 0x80) {
+        out.push((v & 0x7F) | 0x80);
+        v >>>= 7;
+    };
+
+    out.push(v & 0x7F);
+
+    return Buffer.from(out);
+};
+
+function specialSHA(sessionKey) {
+    const ResSz = 32;
+    const salts = [
+        Buffer.from([0x00, 0x00, 0x00, 0x00]),
+        Buffer.from([0x00, 0x00, 0x00, 0x01])
+    ];
+    
+    const result = Buffer.alloc(ResSz);
+    let idx = 0;
+    let remaining = ResSz;
+    
+    while (remaining > 20) {
+        const hash = crypto.createHash('sha1');
+        hash.update(salts[idx]);
+        hash.update(sessionKey);
+        const digest = hash.digest();
+        digest.copy(result, idx * 20, 0, 20);
+        idx++;
+        remaining -= 20;
+    };
+    
+    const hash = crypto.createHash('sha1');
+    hash.update(salts[idx]);
+    hash.update(sessionKey);
+    const digest = hash.digest();
+    digest.copy(result, idx * 20, 0, remaining);
+    
+    return result;
+};
+
+function aes_ctr_decrypt(encrypted_data, key, is_response = true) {
+    const iv = Buffer.alloc(16, 0);
+    
+    if (is_response) {
+        iv[3] = 0x01;
+        iv[7] = 0x01;
+    };
+
+    const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+    cipher.setAutoPadding(false);
+    
+    const decrypted = Buffer.concat([
+        cipher.update(encrypted_data),
+        cipher.final()
+    ]);
+    
+    return decrypted;
+};
+
+function aes_ctr_encrypt(data, key) {
+    const iv = Buffer.alloc(16, 0x00);
+    iv[3] = 0x01;
+    iv[7] = 0x01;
+
+    const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+
+    const encrypted = Buffer.concat([
+        cipher.update(data),
+        cipher.final()
+    ]);
+    
+    return encrypted;
 };
 
 export default {
@@ -209,5 +289,9 @@ export default {
     networkToHostOrder,
     hostToNetworkOrder,
     create_RC4_stream,
-    read_int
+    read_int,
+    write_int,
+    specialSHA,
+    aes_ctr_decrypt,
+    aes_ctr_encrypt
 };
