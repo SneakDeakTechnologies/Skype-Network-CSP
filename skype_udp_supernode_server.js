@@ -11,9 +11,9 @@ const supernode = dgram.createSocket('udp4');
 
 const Skype_SuperNode_Config = {
     host: process.env.skype_udp_supernode_host,
-    port: process.env.skype_udp_supernode_port,
+    port: parseInt(process.env.skype_udp_supernode_port),
     keyserver_host: process.env.skype_keyserver_host,
-    keyserver_port: process.env.skype_keyserver_port
+    keyserver_port: parseInt(process.env.skype_keyserver_port)
 };
 
 supernode.on('message', async (message, rinfo) => {
@@ -29,7 +29,7 @@ supernode.on('message', async (message, rinfo) => {
     switch (packetType) {
         case 0x02:
             logger.print(`[DEBUG] ${time} Received PKT_TYPE_OBFSUK. Processing...`);
-            UDPfunctions.send_nack_packet(supernode, rinfo, message, time);
+            UDPfunctions.send_nack_packet(supernode, rinfo, message, Client, time);
         break;
 
         case 0x03:
@@ -69,7 +69,7 @@ supernode.on('message', async (message, rinfo) => {
                     logger.print(`[DEBUG] ${time} Received CMD_PROBE. Processing..`);
                     
                     const RequestID = (encrypted_body[5] << 8) | encrypted_body[6];
-                    await UDPfunctions.send_probe_ok(Skype_SuperNode_Config, supernode, rinfo, message, RequestID, time);
+                    await UDPfunctions.send_probe_ok(Skype_SuperNode_Config, supernode, rinfo, message, Client, RequestID, time);
                 };
             } else {
                 logger.print(`[DEBUG] ${time} CRC32 Mismatch!`);
@@ -80,8 +80,8 @@ supernode.on('message', async (message, rinfo) => {
 
 supernode.on('listening', () => {
     const address = supernode.address();
-    process.stdout.write('\x1B]0;Skype SuperNode Server\x07');
-    logger.print(`Skype SuperNode Server is running on: udp://${address.address}:${address.port}`);
+    process.stdout.write('\x1B]0;Skype UDP SuperNode Server\x07');
+    logger.print(`Skype UDP SuperNode Server is running on: udp://${address.address}:${address.port}`);
     logger.print(`Waiting for connections...`);
 });
 

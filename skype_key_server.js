@@ -1,3 +1,4 @@
+// Skype Network by NikDev!
 import skype_crypto from './crypto/skype_crypto.js';
 import UDPsender from './sender/UDPsender.js';
 import logger from './logger/logger.js';
@@ -8,7 +9,7 @@ const keyserver = dgram.createSocket('udp4');
 
 const Skype_KeyServer_Config = {
     host: process.env.skype_keyserver_host,
-    port: process.env.skype_keyserver_port
+    port: parseInt(process.env.skype_keyserver_port)
 };
 
 keyserver.on('message', async (message, rinfo) => {
@@ -40,5 +41,5 @@ keyserver.on('listening', () => {
     logger.print(`Skype Key Server is running on: udp://${address.address}:${address.port}`);
     logger.print(`Waiting for connections...`);
 });
-6
+
 keyserver.bind(Skype_KeyServer_Config.port, Skype_KeyServer_Config.host);

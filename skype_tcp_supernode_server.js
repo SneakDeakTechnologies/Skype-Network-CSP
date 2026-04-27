@@ -28,8 +28,7 @@ const supernode = net.createServer((socket) => {
         if (data.length === 72 && data[0] === 0x80 && data[1] === 0x46 && data[2] === 0x01) {
             logger.print(`[DEBUG] ${time} Received Skype HTTPS HandShake. Processing...`);
             
-            const https_HandShake = TCPfunctions.build_https_handshake();
-            TCPsender.send(socket, https_HandShake, time, Client);
+            TCPfunctions.build_https_handshake(socket, time, Client);
         } else if (data.length === 51 || data.length === 14) {
             logger.print(`[DEBUG] ${time} Received Key-Exchange. Processing...`);
             client_seed = data.readInt32BE(0) >>> 0;
@@ -43,7 +42,7 @@ const supernode = net.createServer((socket) => {
         
             if (!RC4 || RC4.length < 88) {
                 logger.error(`[ERROR] ${time} RC4 Key is null`);
-                return socket.close();
+                return socket.end();
             };
 
             const RC4_KEY = Buffer.alloc(80);
@@ -54,14 +53,10 @@ const supernode = net.createServer((socket) => {
             const ctrl_body = data.slice(14);
             recv_stream_key.update(ctrl_body);
 
-            const keyexchange_packet = await TCPfunctions.build_keyexchange(Skype_SuperNode_Config, time);
-
-            const keyexchange = keyexchange_packet.keyexchange;
+            const keyexchange_packet = await TCPfunctions.build_keyexchange(Skype_SuperNode_Config, socket, time, Client);
             server_seed = keyexchange_packet.server_seed;
             send_stream_key = keyexchange_packet.send_stream_key;
             stream = keyexchange_packet.stream;
-
-            TCPsender.send(socket, keyexchange, time, Client);
         } else if (data.length === 31) {
             logger.print(`[DEBUG] ${time} Received Client Accept. Processing...`);  
             
@@ -98,17 +93,27 @@ const supernode = net.createServer((socket) => {
             };
         };
     });
+
+    socket.on('error', (error) => {
+        const time = skype_crypto.get_time();
+        logger.error(`\n[DEBUG] ${time} Socket error: ${error.message}`);
+    });
+    
+    socket.on('close', () => {
+        const time = skype_crypto.get_time();
+        logger.print(`\n[DEBUG] ${time} Client ${Client} disconnected`);
+    });
 });
 
 const Skype_SuperNode_Config = {
     host: process.env.skype_tcp_supernode_host,
-    port: process.env.skype_tcp_supernode_port,
+    port: parseInt(process.env.skype_tcp_supernode_port),
     keyserver_host: process.env.skype_keyserver_host,
-    keyserver_port: process.env.skype_keyserver_port
+    keyserver_port: parseInt(process.env.skype_keyserver_port)
 };
 
 supernode.listen(Skype_SuperNode_Config.port, Skype_SuperNode_Config.host, () => {
-    process.stdout.write('\x1B]0;Skype SuperNode Server\x07');
-    logger.print(`Skype SuperNode Server is running on: tcp://${Skype_SuperNode_Config.host}:${Skype_SuperNode_Config.port}`);
+    process.stdout.write('\x1B]0;Skype TCP SuperNode Server\x07');
+    logger.print(`Skype TCP SuperNode Server is running on: tcp://${Skype_SuperNode_Config.host}:${Skype_SuperNode_Config.port}`);
     logger.print(`Waiting for connections...`);
 });
