@@ -67,7 +67,7 @@ const supernode = net.createServer((socket) => {
             logger.print(`[DEBUG] ${time} Decrypted Client Accept: ${decrypted_HEX}`); */
 
             if (decrypted[4] === 0xF2 && decrypted[5] === 0x01) {
-                logger.print(`[DEBUG] ${time} Received CMD_CLIENT_CLIENT. Processing...`);
+                logger.print(`[DEBUG] ${time} Received CMD_CLIENT. Processing...`);
                 let offset = 10;
 
                 const family_nodeid = decrypted[offset];
@@ -90,6 +90,48 @@ const supernode = net.createServer((socket) => {
                 logger.print(`[DEBUG] ${time} Listening Port: ${listeningPort}`);
 
                 TCPfunctions.build_client_accept(socket, stream, time, Client);
+            };
+        } else if (data.length === 16) {
+            logger.print(`[DEBUG] ${time} Received SlotInfo Request. Processing...`);
+
+            const encrypted_data = Buffer.from(data);
+            const decrypted = recv_stream_key.update(encrypted_data);
+            // logger.print(`[DEBUG] ${time} Decrypted SlotInfo Request: ${decrypted.toString('hex').match(/.{1,2}/g)?.join(' ').toUpperCase()}`);
+        
+            let offset = 0;
+            const packetLen = skype_crypto.read_int(decrypted, offset);
+            offset += packetLen.size;
+
+            const slotId = decrypted.readUInt16BE(offset);
+            offset += 2;
+
+            const part_len = skype_crypto.read_int(decrypted, offset);
+            offset += part_len.size;
+            
+            const cmd = skype_crypto.read_int(decrypted, offset);
+            offset += cmd.size;
+
+            if (cmd.value === 0x32) {
+                const replyId = decrypted.readUInt16BE(offset);
+                offset += 2;
+                
+                const params = decrypted[offset++];
+                const nbObj = skype_crypto.read_int(decrypted, offset);
+                offset += nbObj.size;
+                
+                for (let i = 0; i < nbObj.value; i++) {
+                    const objFamily = decrypted[offset++];
+                    const objId = decrypted[offset++];
+                    
+                    if (objFamily === 0x00) {
+                        const value = skype_crypto.read_int(decrypted, offset);
+                        offset += value.size;
+                        
+                        if (objId === 0x00) {
+                            TCPfunctions.build_slotinfo_response(socket, time, Client, stream, value.value, slotId);
+                        };
+                    };
+                };
             };
         };
     });

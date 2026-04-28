@@ -1,4 +1,3 @@
-// Skype Network by NikDev!
 import skype_crypto from './crypto/skype_crypto.js';
 import UDPsender from './sender/UDPsender.js';
 import logger from './logger/logger.js';
@@ -29,7 +28,7 @@ keyserver.on('message', async (message, rinfo) => {
             };
 
             logger.print(`[DEBUG] ${time} Sent ${RC4_KEY.length} bytes to ${Client}: ${RC4_KEY.toString('hex').toUpperCase().match(/.{1,2}/g).join(' ')}`);
-            await UDPsender.send(RC4_KEY, keyserver, rinfo, time);
+            await UDPsender.send(RC4_KEY, keyserver, rinfo, Client, time);
         } catch (error) {
             logger.print(`[DEBUG] DLL execution failed: ${error.message}`);
         };
@@ -38,6 +37,7 @@ keyserver.on('message', async (message, rinfo) => {
 
 keyserver.on('listening', () => {
     const address = keyserver.address();
+    process.stdout.write('\x1B]0;Skype Key Server\x07');
     logger.print(`Skype Key Server is running on: udp://${address.address}:${address.port}`);
     logger.print(`Waiting for connections...`);
 });

@@ -46,7 +46,7 @@ supernode.on('message', async (message, rinfo) => {
             const RC4_KEY = Buffer.alloc(80);
             RC4.copy(RC4_KEY, 0, 0, 80);
             
-            const rc4_key_hex = RC4_KEY.toString('hex').match(/.{1,2}/g)?.join(' ').toUpperCase();
+            // const rc4_key_hex = RC4_KEY.toString('hex').match(/.{1,2}/g)?.join(' ').toUpperCase();
             
             const encrypted_body = Buffer.alloc(message.length - 16);
             message.copy(encrypted_body, 0, 16, message.length);

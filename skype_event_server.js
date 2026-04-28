@@ -26,7 +26,8 @@ MySQL.getConnection((error, connection) => {
     };
 });
 
-const login = net.createServer((socket) => {
+
+const event = net.createServer((socket) => {
     const Client = `${socket.remoteAddress}:${socket.remotePort}`;
     const time = skype_crypto.get_time();
 
@@ -35,40 +36,34 @@ const login = net.createServer((socket) => {
     socket.on('data', async (data) => {
         const time = skype_crypto.get_time();
         const hex = data.toString('hex').match(/.{1,2}/g)?.join(' ').toUpperCase();
-
+        
         logger.print(`\n[DEBUG] ${time} Received ${data.length} bytes from ${Client}: ${hex}`);
 
         if (data[0] === 0x16 && data[1] === 0x03 && data[2] === 0x01) {
             if (data.length === 5) {
-                logger.print(`[DEBUG] ${time} Received Login HandShake. Processing...`);
+                logger.print(`[DEBUG] ${time} Received Event HandShake. Processing...`);
                 TCPfunctions.build_handShake_response(socket, time, Client);
-            } else if (data[4] === 0xCD && data[5] === 0x41 && data[6] === 0x03) {
-                logger.print(`[DEBUG] ${time} Received Login Auth. Processing...`);
+            } else if (data[3] === 0x00 && data[4] === 0xCD && data[5] === 0x41 && data.length > 250 && data.length < 300) {
+                logger.print(`[DEBUG] ${time} Received Event Auth. Processing...`);
                 parser.parse_login_auth(data, time, fs.readFileSync('SSL/rsa_private.key'), fs.readFileSync('SSL/rsa_public.key'), socket, Client, MySQL);
             };
-        };
-    });
-
-    socket.on('error', (error) => {
-        const time = skype_crypto.get_time();
-        logger.error(`\n[DEBUG] ${time} Socket error: ${error.message}`);
-    });
-    
-    socket.on('close', () => {
-        const time = skype_crypto.get_time();
-        logger.print(`\n[DEBUG] ${time} Client ${Client} disconnected`);
+        } else if (data[0] === 0x17 && data[1] === 0x03 && data[2] === 0x01) {
+            if (data[3] === 0x00 && data[4] === 0x57) {
+                logger.print(`[DEBUG] ${time} Received Hash List Request. Processing...`);
+            };
+        };;
     });
 });
 
-const Skype_Login_Server = {
-    host: process.env.skype_login_host,
-    port: parseInt(process.env.skype_login_port),
-    keyserver_host: process.env.skype_keyserver_host,
-    keyserver_port: parseInt(process.env.skype_keyserver_port)
+const Skype_Event_Config = {
+    host: process.env.skype_event_host,
+    port: parseInt(process.env.skype_event_port),
+    // keyserver_host: process.env.skype_keyserver_host,
+    // keyserver_port: parseInt(process.env.skype_keyserver_port)
 };
 
-login.listen(Skype_Login_Server.port, Skype_Login_Server.host, () => {
-    process.stdout.write('\x1B]0;Skype Login Server\x07');
-    logger.print(`Skype Login Server is running on: tcp://${Skype_Login_Server.host}:${Skype_Login_Server.port}`);
+event.listen(Skype_Event_Config.port, Skype_Event_Config.host, () => {
+    process.stdout.write('\x1B]0;Skype Event Server\x07');
+    logger.print(`Skype Event Server is running on: tcp://${Skype_Event_Config.host}:${Skype_Event_Config.port}`);
     logger.print(`Waiting for connections...\n`);
 });
