@@ -6,4 +6,6 @@ function send(socket, data, time, Client) {
     logger.print(`[DEBUG] ${time} Sent ${data.length} bytes to ${Client}: ${data.toString('hex').match(/.{1,2}/g)?.join(' ').toUpperCase()}`);
 };
 
-export default send;
+export default {
+    send
+};

@@ -12,4 +12,6 @@ async function send(data, server, remote, Client, time) {
     });
 };
 
-export default send;
+export default {
+    send
+};
